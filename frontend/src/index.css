@@ -1,0 +1,208 @@
+@import "tailwindcss";
+
+/* ============================================================
+   DOMILOCAL - ESTILOS GENERALES
+   ============================================================ */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  margin: 0;
+  padding: 0;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: #f8fafc;
+  font-family: Arial, Helvetica, sans-serif;
+  color: #1f2937;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* ============================================================
+   CONTENEDORES
+   ============================================================ */
+
+.max-w-6xl {
+  max-width: 1200px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-left: 20px !important;
+  padding-right: 20px !important;
+}
+
+/* ============================================================
+   FONDOS VERDES DE DOMILOCAL
+   ============================================================ */
+
+.bg-gradient-to-br {
+  background: linear-gradient(
+    135deg,
+    #047857 0%,
+    #059669 45%,
+    #10b981 100%
+  ) !important;
+}
+
+[class*="from-green-700"] {
+  background: linear-gradient(
+    135deg,
+    #047857 0%,
+    #059669 50%,
+    #10b981 100%
+  ) !important;
+}
+
+/* ============================================================
+   TEXTOS
+   ============================================================ */
+
+.text-white {
+  color: #ffffff !important;
+}
+
+/* ============================================================
+   BOTONES
+   ============================================================ */
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+}
+
+/* ============================================================
+   TARJETAS
+   ============================================================ */
+
+.bg-white {
+  background-color: #ffffff !important;
+}
+
+[class*="rounded-2xl"] {
+  border-radius: 16px !important;
+}
+
+[class*="rounded-xl"] {
+  border-radius: 12px !important;
+}
+
+/* ============================================================
+   SOMBRAS
+   ============================================================ */
+
+.shadow,
+[class*="shadow-"] {
+  box-shadow:
+    0 4px 15px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* ============================================================
+   GRIDS
+   ============================================================ */
+
+.grid {
+  display: grid !important;
+  gap: 24px;
+}
+
+@media (min-width: 640px) {
+  [class*="sm:grid-cols-2"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (min-width: 768px) {
+  [class*="md:grid-cols-2"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  [class*="md:grid-cols-3"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  [class*="lg:grid-cols-3"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  [class*="lg:grid-cols-4"] {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+}
+
+/* ============================================================
+   IMÁGENES
+   ============================================================ */
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ============================================================
+   INPUTS
+   ============================================================ */
+
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+}
+
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #10b981;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #059669;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+@media (max-width: 768px) {
+  .max-w-6xl {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+}

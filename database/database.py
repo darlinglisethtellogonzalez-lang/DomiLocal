@@ -7,11 +7,21 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.engine import URL
 
-# Buscar el archivo .env en la carpeta principal de DomiLocal
+# Ruta principal del proyecto
 PROJECT_DIR = Path(__file__).resolve().parent.parent
+
+# Cargar variables locales
 load_dotenv(PROJECT_DIR / ".env")
 
-# Leer las credenciales desde el archivo .env
+# Ubicación del certificado de TiDB
+CA_CERT_PATH = (
+    PROJECT_DIR
+    / "backend"
+    / "certs"
+    / "isrgrootx1(1).pem"
+)
+
+# Datos de conexión
 DATABASE_URL = URL.create(
     drivername="mysql+pymysql",
     username=os.getenv("DB_USER", "root"),
@@ -21,21 +31,30 @@ DATABASE_URL = URL.create(
     database=os.getenv("DB_NAME", "domilocal"),
 )
 
-# Crear la conexión con MySQL
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+# Configuración de conexión segura TLS
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    connect_args={
+        "ssl": {
+            "ca": str(CA_CERT_PATH),
+            "check_hostname": True,
+        }
+    },
+)
 
-# Crear las sesiones para consultar la base de datos
+# Crear sesiones
 SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
     bind=engine,
 )
 
-# Base para los modelos
+# Base de los modelos
 Base = declarative_base()
 
 
-# Proporcionar una sesión a las rutas de FastAPI
+# Proporcionar sesiones a FastAPI
 def get_db():
     db = SessionLocal()
     try:

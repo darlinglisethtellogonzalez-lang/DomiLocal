@@ -3,10 +3,20 @@ from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
-from database.database import get_db
-from backend.models.producto import Producto
+from database.database import get_db, engine, Base
+
+# Registrar todos los modelos
+from backend.models import (
+    Usuario,
+    Negocio,
+    Producto,
+    Pedido,
+    DetallePedido,
+)
+
 from backend.routers.auth import router as auth_router
 from backend.routers.pedidos import router as pedidos_router
+
 
 app = FastAPI(
     title="API DomiLocal",
@@ -14,12 +24,20 @@ app = FastAPI(
     version="1.0.0"
 )
 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Crear las tablas si todavía no existen
+@app.on_event("startup")
+def crear_tablas():
+    Base.metadata.create_all(bind=engine)
+
 
 # Rutas de autenticación
 app.include_router(auth_router)

@@ -1,9 +1,11 @@
+
 import { useState } from "react";
-import './index.css';
+import "./index.css";
+
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 
-// ── Pantallas ──────────────────────────────────────────────
+// Pantallas
 import InicioScreen from "./screens/InicioScreen";
 import LoginScreen from "./screens/LoginScreen";
 import RegistroScreen from "./screens/RegistroScreen";
@@ -14,7 +16,6 @@ import DetallePedidoScreen from "./screens/DetallePedidoScreen";
 import PanelNegocioScreen from "./screens/PanelNegocioScreen";
 import PanelDomiciliarioScreen from "./screens/PanelDomiciliarioScreen";
 
-// ── Tipo de pantallas disponibles ──────────────────────────
 export type Screen =
   | "inicio"
   | "login"
@@ -28,33 +29,93 @@ export type Screen =
 
 export default function App() {
   const [pantalla, setPantalla] = useState<Screen>("inicio");
-  const [pedidoSeleccionado, setPedidoSeleccionado] = useState<number | null>(null);
 
-  const navegar = (s: Screen, extra?: { pedidoId?: number }) => {
-    if (extra?.pedidoId !== undefined) setPedidoSeleccionado(extra.pedidoId);
+  const [pedidoSeleccionado, setPedidoSeleccionado] =
+    useState<number | null>(null);
+
+  // Categoría seleccionada desde la pantalla de inicio
+  const [categoriaSeleccionada, setCategoriaSeleccionada] =
+    useState("Todos");
+
+  // Función de navegación
+  const navegar = (
+    s: Screen,
+    extra?: {
+      pedidoId?: number;
+      categoria?: string;
+    }
+  ) => {
+    if (extra?.pedidoId !== undefined) {
+      setPedidoSeleccionado(extra.pedidoId);
+    }
+
+    if (extra?.categoria !== undefined) {
+      setCategoriaSeleccionada(extra.categoria);
+    }
+
     setPantalla(s);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   };
 
   const props = { navegar };
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
-      <Navbar pantallaActual={pantalla} navegar={navegar} />
+      <Navbar
+        pantallaActual={pantalla}
+        navegar={navegar}
+      />
 
       <main className="flex-1">
-        {pantalla === "inicio"              && <InicioScreen {...props} />}
-        {pantalla === "login"               && <LoginScreen {...props} />}
-        {pantalla === "registro"            && <RegistroScreen {...props} />}
-        {pantalla === "productos"           && <ProductosScreen {...props} />}
-        {pantalla === "carrito"             && <CarritoScreen {...props} />}
-        {pantalla === "mis-pedidos"         && <MisPedidosScreen navegar={navegar} />}
-        {pantalla === "detalle-pedido"      && <DetallePedidoScreen pedidoId={pedidoSeleccionado} navegar={navegar} />}
-        {pantalla === "panel-negocio"       && <PanelNegocioScreen navegar={navegar} />}
-        {pantalla === "panel-domiciliario"  && <PanelDomiciliarioScreen navegar={navegar} />}
+        {pantalla === "inicio" && (
+          <InicioScreen {...props} />
+        )}
+
+        {pantalla === "login" && (
+          <LoginScreen {...props} />
+        )}
+
+        {pantalla === "registro" && (
+          <RegistroScreen {...props} />
+        )}
+
+        {pantalla === "productos" && (
+          <ProductosScreen
+            navegar={navegar}
+            categoriaInicial={categoriaSeleccionada}
+          />
+        )}
+
+        {pantalla === "carrito" && (
+          <CarritoScreen {...props} />
+        )}
+
+        {pantalla === "mis-pedidos" && (
+          <MisPedidosScreen navegar={navegar} />
+        )}
+
+        {pantalla === "detalle-pedido" && (
+          <DetallePedidoScreen
+            pedidoId={pedidoSeleccionado}
+            navegar={navegar}
+          />
+        )}
+
+        {pantalla === "panel-negocio" && (
+          <PanelNegocioScreen navegar={navegar} />
+        )}
+
+        {pantalla === "panel-domiciliario" && (
+          <PanelDomiciliarioScreen navegar={navegar} />
+        )}
       </main>
 
       <Footer navegar={navegar} />
     </div>
   );
 }
+

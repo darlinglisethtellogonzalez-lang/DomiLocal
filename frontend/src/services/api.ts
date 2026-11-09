@@ -1,12 +1,15 @@
+
 // ============================================================
-//  CAPA DE COMUNICACIÓN: React → FastAPI
-//  Todos los fetch() hacia el backend pasan por aquí.
-//  Cambiar BASE_URL cuando se despliegue el servidor real.
+// CAPA DE COMUNICACIÓN: React → FastAPI
+// Todos los fetch() hacia el backend pasan por aquí.
 // ============================================================
 
-const BASE_URL = "http://localhost:8000"; // URL del servidor FastAPI
+const BASE_URL = "http://localhost:8000";
 
-// ---------- Utilidad de petición ----------
+// ============================================================
+// UTILIDAD DE PETICIÓN
+// ============================================================
+
 async function peticion<T>(
   ruta: string,
   opciones: RequestInit = {}
@@ -14,118 +17,242 @@ async function peticion<T>(
   const token = localStorage.getItem("token");
 
   const respuesta = await fetch(`${BASE_URL}${ruta}`, {
+    ...opciones,
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...opciones.headers,
     },
-    ...opciones,
   });
 
   if (!respuesta.ok) {
     const error = await respuesta.json().catch(() => ({}));
-    throw new Error(error.detail || `Error ${respuesta.status}`);
+
+    throw new Error(
+      error.detail || `Error ${respuesta.status}`
+    );
   }
 
   return respuesta.json();
 }
 
-// ─────────────────────────────────────────
-//  AUTH
-// ─────────────────────────────────────────
+// ============================================================
+// AUTH
+// ============================================================
+
 export const authAPI = {
-  /** POST /auth/registro  →  crea usuario y devuelve token */
   registrar: (datos: {
     nombre: string;
     correo: string;
     contrasena: string;
     tipo: "cliente" | "negocio" | "domiciliario";
   }) =>
-    peticion<{ access_token: string; token_type: string; usuario: Usuario }>(
-      "/auth/registro",
-      { method: "POST", body: JSON.stringify(datos) }
-    ),
+    peticion<{
+      access_token: string;
+      token_type: string;
+      usuario: Usuario;
+    }>("/auth/registro", {
+      method: "POST",
+      body: JSON.stringify(datos),
+    }),
 
-  /** POST /auth/login  →  devuelve token JWT */
   login: (correo: string, contrasena: string) =>
-    peticion<{ access_token: string; token_type: string; usuario: Usuario }>(
-      "/auth/login",
-      { method: "POST", body: JSON.stringify({ correo, contrasena }) }
-    ),
+    peticion<{
+      access_token: string;
+      token_type: string;
+      usuario: Usuario;
+    }>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ correo, contrasena }),
+    }),
 
-  /** GET /auth/yo  →  devuelve el usuario autenticado */
   yo: () => peticion<Usuario>("/auth/yo"),
 };
 
-// ─────────────────────────────────────────
-//  PRODUCTOS
-// ─────────────────────────────────────────
+// ============================================================
+// PRODUCTOS
+// ============================================================
+
 export const productosAPI = {
-  /** GET /productos  →  lista de productos con filtros opcionales */
-  listar: (params?: { categoria?: string; busqueda?: string }) => {
-    const query = new URLSearchParams(
-      Object.entries(params ?? {}).filter(([, v]) => v) as string[][]
-    ).toString();
-    return peticion<Producto[]>(`/productos${query ? `?${query}` : ""}`);
+  /** GET /api/productos → productos de la API */
+  listarPrueba: async (): Promise<Producto[]> => {
+    type ProductoSimulado = {
+      id: number;
+      nombre: string;
+      descripcion: string;
+      precio: number;
+      categoria: string;
+    };
+
+    const datos = await peticion<ProductoSimulado[]>(
+      "/api/productos"
+    );
+
+    return datos.map((p) => {
+      const nombre = p.nombre.toLowerCase();
+
+      let categoria = "Comidas";
+
+      if (
+        nombre.includes("jugo") ||
+        nombre.includes("limonada") ||
+        nombre.includes("bebida")
+      ) {
+        categoria = "Bebidas";
+      } else if (
+        nombre.includes("papas") ||
+        nombre.includes("empanadas") ||
+        nombre.includes("aperitivo")
+      ) {
+        categoria = "Aperitivos";
+      } else if (
+        nombre.includes("brownie") ||
+        nombre.includes("helado") ||
+        nombre.includes("postre")
+      ) {
+        categoria = "Postres";
+      }
+
+      let imagen =
+        "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop";
+
+      if (nombre.includes("hamburguesa")) {
+        imagen =
+          "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&auto=format&fit=crop";
+      } else if (nombre.includes("pizza")) {
+        imagen =
+          "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500&auto=format&fit=crop";
+      } else if (nombre.includes("pollo")) {
+        imagen =
+          "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=500&auto=format&fit=crop";
+      } else if (nombre.includes("perro caliente")) {
+        imagen =
+          "https://images.unsplash.com/photo-1612392061981-9d086fe894ed?auto=format&fit=crop&fm=jpg&q=80&w=500";
+      } else if (nombre.includes("jugo")) {
+        imagen =
+          "https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=500&auto=format&fit=crop";
+      } else if (nombre.includes("limonada")) {
+        imagen =
+          "https://images.unsplash.com/photo-1631308492942-3a713d7fd02e?auto=format&fit=crop&fm=jpg&q=80&w=500";
+      } else if (nombre.includes("papas")) {
+        imagen =
+          "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=500&auto=format&fit=crop";
+      } else if (nombre.includes("empanadas")) {
+        imagen =
+          "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=500&auto=format&fit=crop";
+      } else if (nombre.includes("brownie")) {
+        imagen =
+          "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?w=500&auto=format&fit=crop";
+      } else if (nombre.includes("helado")) {
+        imagen =
+          "https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=500&auto=format&fit=crop";
+      }
+
+      return {
+        ...p,
+        categoria,
+        imagen_url: imagen,
+        disponible: true,
+        negocio_id: 52,
+      };
+    });
   },
 
-  /** GET /productos/:id  →  detalle de un producto */
-  obtener: (id: number) => peticion<Producto>(`/productos/${id}`),
+  /** GET /productos → lista de productos con filtros */
+  listar: (params?: {
+    categoria?: string;
+    busqueda?: string;
+  }) => {
+    const query = new URLSearchParams(
+      Object.entries(params ?? {}).filter(
+        ([, valor]) => valor
+      ) as string[][]
+    ).toString();
 
-  /** POST /productos  →  crear producto (solo negocio) */
+    return peticion<Producto[]>(
+      `/productos${query ? `?${query}` : ""}`
+    );
+  },
+
+  obtener: (id: number) =>
+    peticion<Producto>(`/productos/${id}`),
+
   crear: (datos: Omit<Producto, "id">) =>
     peticion<Producto>("/productos", {
       method: "POST",
       body: JSON.stringify(datos),
     }),
 
-  /** PUT /productos/:id  →  editar producto */
   editar: (id: number, datos: Partial<Producto>) =>
     peticion<Producto>(`/productos/${id}`, {
       method: "PUT",
       body: JSON.stringify(datos),
     }),
 
-  /** DELETE /productos/:id  →  eliminar producto */
   eliminar: (id: number) =>
-    peticion<{ mensaje: string }>(`/productos/${id}`, { method: "DELETE" }),
+    peticion<{ mensaje: string }>(
+      `/productos/${id}`,
+      { method: "DELETE" }
+    ),
 };
 
-// ─────────────────────────────────────────
-//  PEDIDOS
-// ─────────────────────────────────────────
+// ============================================================
+// PEDIDOS
+// ============================================================
+
 export const pedidosAPI = {
-  /** POST /pedidos  →  crear nuevo pedido */
+  /** POST /pedidos → crear pedido */
   crear: (datos: CrearPedido) =>
     peticion<Pedido>("/pedidos", {
       method: "POST",
       body: JSON.stringify(datos),
     }),
 
-  /** GET /pedidos/mis-pedidos  →  pedidos del cliente autenticado */
-  misPedidos: () => peticion<Pedido[]>("/pedidos/mis-pedidos"),
+  /** GET /pedidos/mis-pedidos → pedidos del cliente */
+  misPedidos: () =>
+    peticion<Pedido[]>("/pedidos/mis-pedidos"),
 
-  /** GET /pedidos/:id  →  detalle de un pedido */
-  obtener: (id: number) => peticion<Pedido>(`/pedidos/${id}`),
+  /** GET /pedidos/{id} → consultar pedido */
+  obtener: (id: number) =>
+    peticion<Pedido>(`/pedidos/${id}`),
 
-  /** PATCH /pedidos/:id/estado  →  cambiar estado (negocio/domiciliario) */
-  cambiarEstado: (id: number, estado: EstadoPedido) =>
-    peticion<Pedido>(`/pedidos/${id}/estado`, {
-      method: "PATCH",
+  /** PUT /pedidos/{id}/estado → cambiar estado del pedido */
+  cambiarEstado: (
+    id: number,
+    estado: EstadoPedido
+  ) =>
+    peticion<{
+      mensaje: string;
+      pedido_id: number;
+      estado_anterior: string;
+      estado: EstadoPedido;
+    }>(`/pedidos/${id}/estado`, {
+      method: "PUT",
       body: JSON.stringify({ estado }),
     }),
 
-  /** GET /pedidos/negocio  →  todos los pedidos del negocio */
-  delNegocio: () => peticion<Pedido[]>("/pedidos/negocio"),
+  /** GET /pedidos/negocio/mis-pedidos → pedidos reales del negocio */
+  delNegocio: () =>
+    peticion<RespuestaPedidosNegocio>(
+      "/pedidos/negocio/mis-pedidos"
+    ),
 
-  /** GET /pedidos/domiciliario  →  pedidos asignados al domiciliario */
-  delDomiciliario: () => peticion<Pedido[]>("/pedidos/domiciliario"),
+  /** GET /pedidos/domiciliario → pedidos del domiciliario */
+  delDomiciliario: () =>
+    peticion<Pedido[]>("/pedidos/domiciliario"),
 };
 
-// ─────────────────────────────────────────
-//  TIPOS TypeScript
-// ─────────────────────────────────────────
-export type TipoUsuario = "cliente" | "negocio" | "domiciliario";
+// ============================================================
+// TIPOS TYPESCRIPT
+// ============================================================
+
+export type TipoUsuario =
+  | "cliente"
+  | "negocio"
+  | "domiciliario";
+
 export type EstadoPedido =
+  | "pendiente"
   | "recibido"
   | "preparando"
   | "en_camino"
@@ -171,14 +298,56 @@ export interface Pedido {
 
 export interface CrearPedido {
   direccion_entrega: string;
-  items: { producto_id: number; cantidad: number }[];
+  items: {
+    producto_id: number;
+    cantidad: number;
+  }[];
 }
 
-// Etiquetas en español para los estados
-export const ETIQUETAS_ESTADO: Record<EstadoPedido, string> = {
-  recibido:   "Pedido recibido",
+// ============================================================
+// RESPUESTA REAL DEL BACKEND PARA EL NEGOCIO
+// ============================================================
+
+export interface ProductoPedidoNegocio {
+  producto_id: number;
+  nombre: string;
+  cantidad: number;
+  precio_unitario: number;
+  subtotal: number;
+}
+
+export interface PedidoNegocio {
+  pedido_id: number;
+  cliente_id: number;
+  domiciliario_id: number | null;
+  direccion_entrega: string;
+  fecha_pedido: string;
+  estado: EstadoPedido;
+  productos: ProductoPedidoNegocio[];
+  total_productos: number;
+  comision_domilocal: number;
+  neto_negocio: number;
+}
+
+export interface RespuestaPedidosNegocio {
+  negocio: string;
+  cantidad_pedidos: number;
+  pedidos: PedidoNegocio[];
+}
+
+// ============================================================
+// ETIQUETAS DE LOS ESTADOS
+// ============================================================
+
+export const ETIQUETAS_ESTADO: Record<
+  EstadoPedido,
+  string
+> = {
+  pendiente: "Pendiente",
+  recibido: "Pedido recibido",
   preparando: "Preparando pedido",
-  en_camino:  "En camino",
-  entregado:  "Entregado",
-  cancelado:  "Cancelado",
+  en_camino: "En camino",
+  entregado: "Entregado",
+  cancelado: "Cancelado",
 };
+

@@ -1,231 +1,563 @@
-import { useState } from "react";
+
+import { useCallback, useEffect, useState } from "react";
 import type { Screen } from "../App";
-import type { Pedido, EstadoPedido } from "../services/api";
-import { ETIQUETAS_ESTADO } from "../services/api";
+import {
+  pedidosAPI,
+  type PedidoNegocio,
+  type EstadoPedido,
+} from "../services/api";
 
-const PEDIDOS_DEMO: Pedido[] = [
-  { id: 1, cliente_id: 1, cliente_nombre: "Juan Pérez",   domiciliario_id: null, estado: "recibido",  total: 24000, direccion_entrega: "Cra 10 #20-30, Barrio Centro", created_at: "2026-09-07T10:00:00",
-    items: [{ producto_id: 1, cantidad: 1, precio_unitario: 18000, nombre_producto: "Hamburguesa Clásica" }, { producto_id: 2, cantidad: 1, precio_unitario: 6000, nombre_producto: "Jugo Natural de Mora" }] },
-  { id: 2, cliente_id: 2, cliente_nombre: "Ana Gómez",    domiciliario_id: null, estado: "preparando", total: 15000, direccion_entrega: "Cl 45 #12-15, Barrio Sur",     created_at: "2026-09-07T09:30:00",
-    items: [{ producto_id: 3, cantidad: 1, precio_unitario: 8000, nombre_producto: "Papas a la Francesa" }, { producto_id: 2, cantidad: 1, precio_unitario: 7000, nombre_producto: "Helado de Vainilla" }] },
-  { id: 3, cliente_id: 3, cliente_nombre: "Luis Ramírez", domiciliario_id: 2,    estado: "en_camino",  total: 31000, direccion_entrega: "Av 68 #30-20, Barrio Norte",   created_at: "2026-09-07T08:00:00",
-    items: [{ producto_id: 5, cantidad: 1, precio_unitario: 22000, nombre_producto: "Pizza Margarita" }, { producto_id: 3, cantidad: 1, precio_unitario: 9000, nombre_producto: "Empanadas x3" }] },
-  { id: 4, cliente_id: 4, cliente_nombre: "María Torres", domiciliario_id: 3,    estado: "entregado",  total: 12000, direccion_entrega: "Cra 7 #45-20, Chapinero",       created_at: "2026-09-07T07:00:00",
-    items: [{ producto_id: 4, cantidad: 2, precio_unitario: 5000, nombre_producto: "Galletas de Chocolate" }, { producto_id: 6, cantidad: 1, precio_unitario: 2000, nombre_producto: "Limonada Natural" }] },
-];
-
-const COLOR_ESTADO: Record<EstadoPedido, string> = {
-  recibido:  "bg-blue-100 text-blue-700",
-  preparando:"bg-yellow-100 text-yellow-700",
-  en_camino: "bg-orange-100 text-orange-700",
-  entregado: "bg-green-100 text-green-700",
-  cancelado: "bg-red-100 text-red-600",
-};
-
-const ICONO_ESTADO: Record<EstadoPedido, string> = {
-  recibido:"📋", preparando:"🍳", en_camino:"🛵", entregado:"✅", cancelado:"❌",
-};
+interface Props {
+  navegar: (s: Screen) => void;
+}
 
 type Tab = "pedidos" | "productos" | "estadisticas";
 
-interface Props { navegar: (s: Screen) => void }
+const COMISION = 3000;
+
+const ETIQUETAS: Record<string, string> = {
+  pendiente: "Pendiente",
+  recibido: "Recibido",
+  preparando: "Preparando",
+  en_camino: "En camino",
+  entregado: "Entregado",
+  cancelado: "Cancelado",
+};
+
+const COLORES: Record<string, string> = {
+  pendiente: "bg-yellow-100 text-yellow-700",
+  recibido: "bg-blue-100 text-blue-700",
+  preparando: "bg-orange-100 text-orange-700",
+  en_camino: "bg-purple-100 text-purple-700",
+  entregado: "bg-green-100 text-green-700",
+  cancelado: "bg-red-100 text-red-700",
+};
+
+const ICONOS: Record<string, string> = {
+  pendiente: "⏳",
+  recibido: "📋",
+  preparando: "🍳",
+  en_camino: "🛵",
+  entregado: "✅",
+  cancelado: "❌",
+};
+
+const dinero = (valor: number) =>
+  `$${Number(valor || 0).toLocaleString("es-CO")}`;
+
+const formatFecha = (fecha: string) => {
+  const fechaValida = new Date(fecha);
+
+  if (Number.isNaN(fechaValida.getTime())) {
+    return "Fecha no disponible";
+  }
+
+  return fechaValida.toLocaleString("es-CO", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+};
+
+// Determina el siguiente estado permitido.
+const SIGUIENTE_ESTADO: Partial<
+  Record<EstadoPedido, EstadoPedido>
+> = {
+  pendiente: "recibido",
+  recibido: "preparando",
+  preparando: "en_camino",
+  en_camino: "entregado",
+};
+
+const BOTONES_ESTADO: Partial<
+  Record<EstadoPedido, string>
+> = {
+  pendiente: "Aceptar pedido",
+  recibido: "Comenzar preparación",
+  preparando: "Enviar pedido",
+  en_camino: "Marcar como entregado",
+};
 
 export default function PanelNegocioScreen({ navegar }: Props) {
-  const [tab, setTab]         = useState<Tab>("pedidos");
-  const [pedidos, setPedidos] = useState(PEDIDOS_DEMO);
-  const [abierto, setAbierto] = useState<number | null>(null);
+  const [tab, setTab] = useState<Tab>("pedidos");
+  const [pedidos, setPedidos] = useState<PedidoNegocio[]>([]);
+  const [nombreNegocio, setNombreNegocio] = useState("");
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState("");
+  const [pedidoActualizando, setPedidoActualizando] = useState<number | null>(null);
+  const [mensaje, setMensaje] = useState("");
 
-  const cambiarEstado = (id: number, estado: EstadoPedido) => {
-    setPedidos(prev => prev.map(p => p.id === id ? { ...p, estado } : p));
-    setAbierto(null);
+  const cargarPedidos = useCallback(async () => {
+    try {
+      setCargando(true);
+      setError("");
+
+      const respuesta = await pedidosAPI.delNegocio();
+
+      if (!respuesta || !Array.isArray(respuesta.pedidos)) {
+        throw new Error(
+          "El servidor devolvió una respuesta de pedidos inválida."
+        );
+      }
+
+      setPedidos(respuesta.pedidos);
+      setNombreNegocio(respuesta.negocio || "Mi negocio");
+    } catch (err) {
+      console.error("ERROR AL CARGAR PEDIDOS:", err);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudieron cargar los pedidos."
+      );
+    } finally {
+      setCargando(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    cargarPedidos();
+  }, [cargarPedidos]);
+
+  // Cambiar estado de un pedido.
+  const actualizarEstado = async (
+    pedidoId: number,
+    nuevoEstado: EstadoPedido
+  ) => {
+    try {
+      setPedidoActualizando(pedidoId);
+      setMensaje("");
+      setError("");
+
+      await pedidosAPI.cambiarEstado(pedidoId, nuevoEstado);
+
+      setMensaje(
+        `El pedido #${pedidoId} ahora está en estado: ${
+          ETIQUETAS[nuevoEstado]
+        }.`
+      );
+
+      await cargarPedidos();
+    } catch (err) {
+      console.error("ERROR AL ACTUALIZAR ESTADO:", err);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo actualizar el estado del pedido."
+      );
+    } finally {
+      setPedidoActualizando(null);
+    }
   };
 
+  // Pedidos que no están cancelados.
+  const pedidosActivos = pedidos.filter(
+    (pedido) => pedido.estado !== "cancelado"
+  );
+
+  // Resumen económico.
+  const totalProductos = pedidosActivos.reduce(
+    (suma, pedido) =>
+      suma + Number(pedido.total_productos || 0),
+    0
+  );
+
+  const totalComisiones = pedidosActivos.reduce(
+    (suma, pedido) =>
+      suma + Number(pedido.comision_domilocal ?? COMISION),
+    0
+  );
+
+  const netoNegocio = pedidosActivos.reduce(
+    (suma, pedido) =>
+      suma +
+      Number(
+        pedido.neto_negocio ??
+          (Number(pedido.total_productos || 0) -
+            Number(pedido.comision_domilocal ?? COMISION))
+      ),
+    0
+  );
+
+  // Estadísticas de pedidos.
   const stats = {
-    total:     pedidos.length,
-    nuevos:    pedidos.filter(p => p.estado === "recibido").length,
-    enCamino:  pedidos.filter(p => p.estado === "en_camino").length,
-    entregados:pedidos.filter(p => p.estado === "entregado").length,
-    ingresos:  pedidos.filter(p => p.estado !== "cancelado").reduce((a,b) => a + b.total, 0),
-  };
+    total: pedidos.length,
 
-  const formatHora = (iso: string) =>
-    new Date(iso).toLocaleTimeString("es-CO", { hour:"2-digit", minute:"2-digit" });
+    nuevos: pedidos.filter(
+      (pedido) =>
+        pedido.estado === "pendiente" ||
+        pedido.estado === "recibido"
+    ).length,
+
+    preparando: pedidos.filter(
+      (pedido) => pedido.estado === "preparando"
+    ).length,
+
+    entregados: pedidos.filter(
+      (pedido) => pedido.estado === "entregado"
+    ).length,
+  };
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
+
+      {/* ENCABEZADO */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Panel del Negocio</h1>
-          <p className="text-sm text-gray-500">Domingo, 7 de septiembre de 2026</p>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Panel del Negocio
+          </h1>
+
+          <p className="text-sm text-gray-500">
+            {nombreNegocio || "Mi negocio"}
+          </p>
         </div>
-        <button onClick={() => navegar("inicio")} className="text-sm text-gray-500 hover:text-green-600 hover:underline">
+
+        <button
+          onClick={() => navegar("inicio")}
+          className="text-sm text-gray-500 hover:text-green-600"
+        >
           ← Ir al inicio
         </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+      {/* TARJETAS DE ESTADÍSTICAS */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {[
-          { label: "Pedidos hoy",  valor: stats.total,                                           color: "text-gray-800"   },
-          { label: "Nuevos",       valor: stats.nuevos,                                           color: "text-blue-600"   },
-          { label: "En cocina",    valor: pedidos.filter(p=>p.estado==="preparando").length,       color: "text-yellow-600" },
-          { label: "En camino",    valor: stats.enCamino,                                         color: "text-orange-600" },
-          { label: "Ingresos",     valor: `$${stats.ingresos.toLocaleString("es-CO")}`,           color: "text-green-600"  },
-        ].map(s => (
-          <div key={s.label} className="bg-white rounded-2xl border border-gray-200 p-4 text-center shadow-sm">
-            <p className={`text-xl font-bold ${s.color}`}>{s.valor}</p>
-            <p className="text-xs text-gray-500 mt-1">{s.label}</p>
+          { label: "Total pedidos", valor: stats.total },
+          { label: "Nuevos", valor: stats.nuevos },
+          { label: "En preparación", valor: stats.preparando },
+          { label: "Entregados", valor: stats.entregados },
+        ].map((item) => (
+          <div
+            key={item.label}
+            className="bg-white rounded-2xl border p-4 text-center shadow-sm"
+          >
+            <p className="text-2xl font-bold text-gray-800">
+              {item.valor}
+            </p>
+
+            <p className="text-xs text-gray-500">
+              {item.label}
+            </p>
           </div>
         ))}
       </div>
 
-      {/* Tabs */}
+      {/* RESUMEN ECONÓMICO */}
+      <div className="bg-white rounded-2xl border p-5 mb-6 shadow-sm">
+        <h2 className="font-bold text-gray-800 mb-4">
+          Resumen de ganancias
+        </h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <p className="text-sm text-gray-500">
+              Ventas de productos
+            </p>
+
+            <p className="text-xl font-bold text-gray-800">
+              {dinero(totalProductos)}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-sm text-gray-500">
+              Comisión DomiLocal
+            </p>
+
+            <p className="text-xl font-bold text-orange-600">
+              {dinero(totalComisiones)}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-sm text-gray-500">
+              Neto estimado del negocio
+            </p>
+
+            <p className="text-xl font-bold text-green-600">
+              {dinero(netoNegocio)}
+            </p>
+          </div>
+        </div>
+
+        <p className="text-xs text-gray-400 mt-4">
+          Comisión de DomiLocal: {dinero(COMISION)} por pedido.
+          Los pedidos cancelados no se incluyen.
+          El domicilio todavía no está incluido.
+        </p>
+      </div>
+
+      {/* PESTAÑAS */}
       <div className="flex gap-2 mb-6 flex-wrap">
-        {(["pedidos","productos","estadisticas"] as Tab[]).map(t => (
-          <button key={t} onClick={() => setTab(t)}
-            className={`px-5 py-2.5 rounded-xl text-sm font-semibold border transition-all ${
-              tab === t ? "bg-green-600 text-white border-green-600" : "bg-white text-gray-600 border-gray-300 hover:border-green-400"
-            }`}>
-            {t === "pedidos" ? "📋 Pedidos" : t === "productos" ? "📦 Productos" : "📊 Estadísticas"}
-          </button>
-        ))}
+        {(["pedidos", "productos", "estadisticas"] as Tab[]).map(
+          (t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-5 py-2.5 rounded-xl text-sm font-semibold border ${
+                tab === t
+                  ? "bg-green-600 text-white border-green-600"
+                  : "bg-white text-gray-600 border-gray-300"
+              }`}
+            >
+              {t === "pedidos"
+                ? "📋 Pedidos"
+                : t === "productos"
+                  ? "📦 Productos"
+                  : "📊 Estadísticas"}
+            </button>
+          )
+        )}
       </div>
 
-      {/* ── Tab Pedidos ── */}
+      {/* PESTAÑA PEDIDOS */}
       {tab === "pedidos" && (
-        <div className="space-y-3">
-          {pedidos.map(p => (
-            <div key={p.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="p-5 flex flex-col sm:flex-row gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    <span className="text-lg">{ICONO_ESTADO[p.estado]}</span>
-                    <span className="font-bold text-gray-900">Pedido #{p.id}</span>
-                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${COLOR_ESTADO[p.estado]}`}>
-                      {ETIQUETAS_ESTADO[p.estado]}
+        <div className="space-y-4">
+
+          <div className="flex justify-between items-center">
+            <h2 className="font-bold text-gray-800">
+              Pedidos recibidos
+            </h2>
+
+            <button
+              onClick={cargarPedidos}
+              disabled={cargando || pedidoActualizando !== null}
+              className="text-sm text-green-600 font-semibold disabled:opacity-50"
+            >
+              {cargando ? "Cargando..." : "↻ Actualizar"}
+            </button>
+          </div>
+
+          {mensaje && (
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+              <p className="text-green-700 text-sm">
+                ✅ {mensaje}
+              </p>
+            </div>
+          )}
+
+          {cargando && (
+            <p className="text-center py-10 text-gray-500">
+              Cargando pedidos...
+            </p>
+          )}
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+              <p className="text-red-700 text-sm">
+                {error}
+              </p>
+
+              <button
+                onClick={cargarPedidos}
+                className="text-red-700 font-bold text-sm mt-2"
+              >
+                Intentar nuevamente
+              </button>
+            </div>
+          )}
+
+          {!cargando && !error && pedidos.length === 0 && (
+            <div className="bg-white border rounded-2xl p-8 text-center">
+              <p className="text-4xl mb-3">📦</p>
+
+              <p className="font-bold text-gray-700">
+                Todavía no tienes pedidos
+              </p>
+
+              <p className="text-sm text-gray-500">
+                Cuando un cliente realice un pedido, aparecerá aquí.
+              </p>
+            </div>
+          )}
+
+          {!cargando && pedidos.map((pedido) => {
+            const siguienteEstado =
+              SIGUIENTE_ESTADO[pedido.estado as EstadoPedido];
+
+            const botonEstado =
+              BOTONES_ESTADO[pedido.estado as EstadoPedido];
+
+            const actualizando =
+              pedidoActualizando === pedido.pedido_id;
+
+            return (
+              <div
+                key={pedido.pedido_id}
+                className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden"
+              >
+                <div className="p-5">
+
+                  {/* ESTADO Y FECHA */}
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    <span className="text-lg">
+                      {ICONOS[pedido.estado] || "📋"}
                     </span>
-                    <span className="text-xs text-gray-400 ml-auto">{formatHora(p.created_at)}</span>
+
+                    <span className="font-bold text-gray-900">
+                      Pedido #{pedido.pedido_id}
+                    </span>
+
+                    <span
+                      className={`text-xs font-semibold px-3 py-1 rounded-full ${
+                        COLORES[pedido.estado] ||
+                        "bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      {ETIQUETAS[pedido.estado] || pedido.estado}
+                    </span>
+
+                    <span className="text-xs text-gray-400 ml-auto">
+                      {formatFecha(pedido.fecha_pedido)}
+                    </span>
                   </div>
-                  <p className="text-sm text-gray-600">👤 {p.cliente_nombre}</p>
-                  <p className="text-sm text-gray-500">📍 {p.direccion_entrega}</p>
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {p.items.map(i => (
-                      <span key={i.producto_id} className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full">
-                        {i.nombre_producto} ×{i.cantidad}
+
+                  {/* CLIENTE Y DIRECCIÓN */}
+                  <p className="text-sm text-gray-600 mb-1">
+                    👤 Cliente #{pedido.cliente_id}
+                  </p>
+
+                  <p className="text-sm text-gray-500 mb-4">
+                    📍 {pedido.direccion_entrega}
+                  </p>
+
+                  {/* PRODUCTOS */}
+                  <div className="border-t border-gray-100 pt-3">
+                    <p className="text-sm font-bold text-gray-700 mb-2">
+                      Productos solicitados
+                    </p>
+
+                    {pedido.productos.map((producto, index) => (
+                      <div
+                        key={`${producto.producto_id}-${index}`}
+                        className="flex justify-between text-sm py-1 gap-3"
+                      >
+                        <span className="text-gray-600">
+                          {producto.nombre} × {producto.cantidad}
+                        </span>
+
+                        <span className="font-semibold text-gray-800">
+                          {dinero(producto.subtotal)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* TOTALES */}
+                  <div className="border-t border-gray-100 mt-4 pt-3 space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">
+                        Total productos
                       </span>
-                    ))}
+
+                      <span className="font-semibold">
+                        {dinero(pedido.total_productos)}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">
+                        Comisión DomiLocal
+                      </span>
+
+                      <span className="text-orange-600 font-semibold">
+                        - {dinero(pedido.comision_domilocal)}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between border-t pt-3">
+                      <span className="font-bold text-gray-800">
+                        Neto del negocio
+                      </span>
+
+                      <span className="text-lg font-bold text-green-600">
+                        {dinero(pedido.neto_negocio)}
+                      </span>
+                    </div>
                   </div>
-                </div>
-                <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                  <p className="text-xl font-bold text-green-600">${p.total.toLocaleString("es-CO")}</p>
-                  {p.estado !== "entregado" && p.estado !== "cancelado" && (
-                    <button onClick={() => setAbierto(abierto === p.id ? null : p.id)}
-                      className="text-sm font-semibold bg-green-600 text-white px-4 py-2 rounded-xl hover:bg-green-700 transition-colors">
-                      {abierto === p.id ? "Cerrar ▲" : "Cambiar estado ▼"}
-                    </button>
+
+                  {/* DOMICILIARIO */}
+                  {pedido.domiciliario_id && (
+                    <p className="text-xs text-gray-500 mt-3">
+                      🛵 Domiciliario asignado: #{pedido.domiciliario_id}
+                    </p>
                   )}
-                </div>
-              </div>
-              {abierto === p.id && (
-                <div className="border-t border-gray-100 px-5 py-4 bg-gray-50">
-                  <p className="text-xs font-semibold text-gray-500 mb-3">Selecciona el nuevo estado:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {(["recibido","preparando","en_camino","entregado","cancelado"] as EstadoPedido[]).map(estado => (
-                      <button key={estado} onClick={() => cambiarEstado(p.id, estado)}
-                        className={`text-xs px-3 py-2 rounded-xl border font-semibold transition-all ${
-                          p.estado === estado
-                            ? "bg-green-600 text-white border-green-600"
-                            : "bg-white text-gray-600 border-gray-300 hover:border-green-400 hover:text-green-700"
-                        }`}>
-                        {ICONO_ESTADO[estado]} {ETIQUETAS_ESTADO[estado]}
+
+                  {/* BOTÓN PARA AVANZAR ESTADO */}
+                  {siguienteEstado && botonEstado && (
+                    <div className="border-t border-gray-100 mt-4 pt-4">
+                      <button
+                        onClick={() =>
+                          actualizarEstado(
+                            pedido.pedido_id,
+                            siguienteEstado
+                          )
+                        }
+                        disabled={
+                          pedidoActualizando !== null || cargando
+                        }
+                        className="w-full sm:w-auto px-5 py-3 rounded-xl bg-green-600 text-white font-semibold text-sm hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {actualizando
+                          ? "Actualizando..."
+                          : botonEstado}
                       </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+                    </div>
+                  )}
 
-      {/* ── Tab Productos ── */}
-      {tab === "productos" && (
-        <div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-            {[
-              { nombre:"Hamburguesa Clásica", precio:18000, pedidos:12, img:"https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=200&h=140&fit=crop&auto=format" },
-              { nombre:"Pizza Margarita",     precio:22000, pedidos:8,  img:"https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=200&h=140&fit=crop&auto=format" },
-              { nombre:"Papas a la Francesa", precio:8000,  pedidos:15, img:"https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=200&h=140&fit=crop&auto=format" },
-            ].map(prod => (
-              <div key={prod.nombre} className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-                <img src={prod.img} alt={prod.nombre} className="w-full h-32 object-cover bg-gray-100"
-                  onError={e => { (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200&h=140&fit=crop&auto=format"; }} />
-                <div className="p-4">
-                  <p className="font-bold text-gray-800 text-sm">{prod.nombre}</p>
-                  <p className="text-green-600 font-bold">${prod.precio.toLocaleString("es-CO")}</p>
-                  <p className="text-xs text-gray-400 mt-1">{prod.pedidos} pedidos hoy</p>
-                  <div className="flex gap-2 mt-3">
-                    <button className="flex-1 text-xs bg-green-600 text-white rounded-lg py-1.5 font-semibold hover:bg-green-700 transition-colors">Editar</button>
-                    <button className="text-xs border border-gray-300 text-gray-600 rounded-lg px-3 py-1.5 hover:border-red-300 hover:text-red-600 transition-colors">Ocultar</button>
-                  </div>
+                  {pedido.estado === "entregado" && (
+                    <p className="text-sm text-green-700 font-semibold mt-4 border-t pt-4">
+                      ✅ Este pedido ya fue entregado.
+                    </p>
+                  )}
+
+                  {pedido.estado === "cancelado" && (
+                    <p className="text-sm text-red-600 font-semibold mt-4 border-t pt-4">
+                      Este pedido fue cancelado.
+                    </p>
+                  )}
+
                 </div>
               </div>
-            ))}
-          </div>
-          <button className="w-full border-2 border-dashed border-green-300 text-green-600 font-semibold rounded-2xl py-4 hover:bg-green-50 transition-colors text-sm">
-            + Agregar nuevo producto
-          </button>
+            );
+          })}
+
         </div>
       )}
 
-      {/* ── Tab Estadísticas ── */}
-      {tab === "estadisticas" && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <h3 className="font-bold text-gray-800 mb-4 text-sm">Pedidos — Sep 2026</h3>
-            <div className="space-y-3">
-              {[
-                { dia:"Lunes 1",     cant:8  },
-                { dia:"Martes 2",    cant:12 },
-                { dia:"Miércoles 3", cant:7  },
-                { dia:"Jueves 4",    cant:15 },
-                { dia:"Viernes 5",   cant:20 },
-                { dia:"Sábado 6",    cant:18 },
-                { dia:"Hoy (7)",     cant:4  },
-              ].map(d => (
-                <div key={d.dia} className="flex items-center gap-3">
-                  <span className="text-xs text-gray-500 w-28 flex-shrink-0">{d.dia}</span>
-                  <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden">
-                    <div className="bg-green-500 h-full rounded-full transition-all"
-                      style={{ width: `${(d.cant / 20) * 100}%` }} />
-                  </div>
-                  <span className="text-xs font-bold text-gray-700 w-6 text-right">{d.cant}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <h3 className="font-bold text-gray-800 mb-4 text-sm">Productos más vendidos</h3>
-            <div className="space-y-3">
-              {[
-                { nombre:"Hamburguesa Clásica", pct:35, color:"bg-orange-500" },
-                { nombre:"Papas a la Francesa", pct:25, color:"bg-yellow-500" },
-                { nombre:"Pizza Margarita",     pct:20, color:"bg-red-500"    },
-                { nombre:"Jugo Natural",         pct:15, color:"bg-blue-500"   },
-                { nombre:"Otros",               pct:5,  color:"bg-gray-400"   },
-              ].map(item => (
-                <div key={item.nombre} className="flex items-center gap-3">
-                  <span className="text-xs text-gray-600 w-36 flex-shrink-0 truncate">{item.nombre}</span>
-                  <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden">
-                    <div className={`${item.color} h-full rounded-full`} style={{ width: `${item.pct}%` }} />
-                  </div>
-                  <span className="text-xs font-bold text-gray-700">{item.pct}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
+      {/* PESTAÑA PRODUCTOS */}
+      {tab === "productos" && (
+        <div className="bg-white border rounded-2xl p-8 text-center">
+          <p className="text-3xl mb-3">📦</p>
+
+          <h3 className="font-bold text-gray-800">
+            Gestión de productos
+          </h3>
+
+          <p className="text-sm text-gray-500 mt-2">
+            Esta sección se conectará con la gestión de productos del backend.
+          </p>
         </div>
       )}
+
+      {/* PESTAÑA ESTADÍSTICAS */}
+      {tab === "estadisticas" && (
+        <div className="bg-white border rounded-2xl p-8 text-center">
+          <p className="text-3xl mb-3">📊</p>
+
+          <h3 className="font-bold text-gray-800">
+            Estadísticas del negocio
+          </h3>
+
+          <p className="text-sm text-gray-500 mt-2">
+            Aquí mostraremos las estadísticas calculadas a partir de los pedidos reales.
+          </p>
+        </div>
+      )}
+
     </div>
   );
 }
+

@@ -1,23 +1,45 @@
+
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.engine import URL
 
-# Ruta de conexión oficial a tu MySQL local
-DATABASE_URL = "mysql+pymysql://root:@localhost:3306/domilocal"
+# Buscar el archivo .env en la carpeta principal de DomiLocal
+PROJECT_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(PROJECT_DIR / ".env")
 
-# Crear el motor de la base de datos
-engine = create_engine(DATABASE_URL)
+# Leer las credenciales desde el archivo .env
+DATABASE_URL = URL.create(
+    drivername="mysql+pymysql",
+    username=os.getenv("DB_USER", "root"),
+    password=os.getenv("DB_PASSWORD"),
+    host=os.getenv("DB_HOST", "localhost"),
+    port=int(os.getenv("DB_PORT", "3306")),
+    database=os.getenv("DB_NAME", "domilocal"),
+)
 
-# Crear la sesión para hacer consultas
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Crear la conexión con MySQL
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
-# Base para los modelos de datos
+# Crear las sesiones para consultar la base de datos
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+)
+
+# Base para los modelos
 Base = declarative_base()
 
-# Función para obtener la base de datos en las rutas
+
+# Proporcionar una sesión a las rutas de FastAPI
 def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+

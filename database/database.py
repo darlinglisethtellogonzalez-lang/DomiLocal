@@ -10,18 +10,17 @@ from sqlalchemy.engine import URL
 # Ruta principal del proyecto
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 
-# Cargar variables locales
+# Cargar variables locales del archivo .env
 load_dotenv(PROJECT_DIR / ".env")
 
 # Ubicación del certificado de TiDB
 CA_CERT_PATH = (
     PROJECT_DIR
     / "backend"
-    / "certs"
-    / "isrgrootx1(1).pem"
+    / "isrgrootx1 (1).pem"
 )
 
-# Datos de conexión
+# Datos de conexión a la base de datos
 DATABASE_URL = URL.create(
     drivername="mysql+pymysql",
     username=os.getenv("DB_USER", "root"),

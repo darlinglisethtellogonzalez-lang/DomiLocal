@@ -26,7 +26,8 @@ class PedidoEstadoActualizar(BaseModel):
     estado: Literal[
         "recibido",
         "preparando",
-        "en_camino"
+        "en_camino",
+        "entregado"
     ]
 
 
@@ -315,7 +316,8 @@ def actualizar_estado_pedido(
     transiciones = {
         "pendiente": "recibido",
         "recibido": "preparando",
-        "preparando": "en_camino"
+        "preparando": "en_camino",
+        "en_camino": "entregado"
     }
 
     estado_anterior = pedido.estado

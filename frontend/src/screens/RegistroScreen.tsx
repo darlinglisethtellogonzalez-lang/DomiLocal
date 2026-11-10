@@ -1,36 +1,93 @@
+
 import { useState } from "react";
 import type { Screen } from "../App";
 import { useAuth } from "../context/AuthContext";
 import type { TipoUsuario } from "../services/api";
 
-interface Props { navegar: (s: Screen) => void }
+interface Props {
+  navegar: (s: Screen) => void;
+}
 
-const ROLES: { valor: TipoUsuario; emoji: string; titulo: string; desc: string }[] = [
-  { valor: "cliente",      emoji: "👤", titulo: "Cliente",      desc: "Realiza pedidos y haz seguimiento." },
-  { valor: "negocio",      emoji: "🏪", titulo: "Negocio",      desc: "Gestiona productos y pedidos."      },
-  { valor: "domiciliario", emoji: "🛵", titulo: "Domiciliario", desc: "Entrega pedidos asignados."         },
+const ROLES: {
+  valor: TipoUsuario;
+  emoji: string;
+  titulo: string;
+  desc: string;
+}[] = [
+  { valor: "cliente", emoji: "👤", titulo: "Cliente", desc: "Realiza pedidos y haz seguimiento." },
+  { valor: "negocio", emoji: "🏪", titulo: "Negocio", desc: "Gestiona productos y pedidos." },
+  { valor: "domiciliario", emoji: "🛵", titulo: "Domiciliario", desc: "Entrega pedidos asignados." },
+];
+
+const CATEGORIAS = [
+  "Restaurante",
+  "Tienda",
+  "Cafetería",
+  "Panadería",
+  "Otro",
 ];
 
 export default function RegistroScreen({ navegar }: Props) {
   const { registrar } = useAuth();
-  const [nombre, setNombre]         = useState("");
-  const [correo, setCorreo]         = useState("");
+
+  const [nombre, setNombre] = useState("");
+  const [correo, setCorreo] = useState("");
   const [contrasena, setContrasena] = useState("");
-  const [tipo, setTipo]             = useState<TipoUsuario>("cliente");
-  const [cargando, setCargando]     = useState(false);
-  const [error, setError]           = useState("");
+  const [tipo, setTipo] = useState<TipoUsuario>("cliente");
+  const [nombreNegocio, setNombreNegocio] = useState("");
+  const [categoria, setCategoria] = useState("");
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!nombre || !correo || !contrasena) { setError("Completa todos los campos."); return; }
-    if (contrasena.length < 6) { setError("La contraseña debe tener al menos 6 caracteres."); return; }
+
+    if (!nombre.trim() || !correo.trim() || !contrasena) {
+      setError("Completa todos los campos.");
+      return;
+    }
+
+    if (contrasena.length < 6) {
+      setError("La contraseña debe tener al menos 6 caracteres.");
+      return;
+    }
+
+    if (tipo === "negocio") {
+      if (!nombreNegocio.trim()) {
+        setError("Escribe el nombre de tu negocio.");
+        return;
+      }
+
+      if (!categoria) {
+        setError("Selecciona la categoría de tu negocio.");
+        return;
+      }
+    }
+
     setCargando(true);
+
     try {
-      await registrar({ nombre, correo, contrasena, tipo });
-      if (tipo === "negocio")      navegar("panel-negocio");
-      else if (tipo === "domiciliario") navegar("panel-domiciliario");
-      else navegar("inicio");
+      await registrar({
+        nombre: nombre.trim(),
+        correo: correo.trim(),
+        contrasena,
+        tipo,
+        ...(tipo === "negocio"
+          ? {
+              nombre_negocio: nombreNegocio.trim(),
+              categoria,
+            }
+          : {}),
+      });
+
+      if (tipo === "negocio") {
+        navegar("panel-negocio");
+      } else if (tipo === "domiciliario") {
+        navegar("panel-domiciliario");
+      } else {
+        navegar("inicio");
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Error al registrar.");
     } finally {
@@ -45,17 +102,21 @@ export default function RegistroScreen({ navegar }: Props) {
         <div className="text-center mb-8">
           <div className="text-5xl mb-3">🎉</div>
           <h1 className="text-2xl font-bold text-gray-900">Crea tu cuenta</h1>
-          <p className="text-gray-500 text-sm mt-1">Únete a DomiLocal hoy mismo</p>
+          <p className="text-gray-500 text-sm mt-1">
+            Únete a DomiLocal hoy mismo
+          </p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
           <form onSubmit={handleSubmit} className="space-y-5">
 
-            {/* Selección de rol */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de cuenta</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Tipo de cuenta
+              </label>
+
               <div className="grid grid-cols-3 gap-2">
-                {ROLES.map(r => (
+                {ROLES.map((r) => (
                   <button
                     key={r.valor}
                     type="button"
@@ -68,49 +129,93 @@ export default function RegistroScreen({ navegar }: Props) {
                   >
                     <span className="text-2xl">{r.emoji}</span>
                     <span className="font-semibold">{r.titulo}</span>
-                    <span className="text-center text-gray-400 leading-tight hidden sm:block">{r.desc}</span>
+                    <span className="text-center text-gray-400 leading-tight hidden sm:block">
+                      {r.desc}
+                    </span>
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Nombre */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Nombre completo</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                Nombre completo
+              </label>
               <input
                 type="text"
                 value={nombre}
-                onChange={e => setNombre(e.target.value)}
-                placeholder="Juan Pérez"
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
+                onChange={(e) => setNombre(e.target.value)}
+                placeholder="Nombre de la persona responsable"
+                required
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </div>
 
-            {/* Correo */}
+            {tipo === "negocio" && (
+              <>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Nombre del negocio
+                  </label>
+                  <input
+                    type="text"
+                    value={nombreNegocio}
+                    onChange={(e) => setNombreNegocio(e.target.value)}
+                    placeholder="Ej. Tienda La Esperanza"
+                    required
+                    className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Categoría del negocio
+                  </label>
+                  <select
+                    value={categoria}
+                    onChange={(e) => setCategoria(e.target.value)}
+                    required
+                    className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+                  >
+                    <option value="">Selecciona una categoría</option>
+                    {CATEGORIAS.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Correo electrónico</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                Correo electrónico
+              </label>
               <input
                 type="email"
                 value={correo}
-                onChange={e => setCorreo(e.target.value)}
+                onChange={(e) => setCorreo(e.target.value)}
                 placeholder="correo@ejemplo.com"
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
+                required
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </div>
 
-            {/* Contraseña */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Contraseña</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                Contraseña
+              </label>
               <input
                 type="password"
                 value={contrasena}
-                onChange={e => setContrasena(e.target.value)}
+                onChange={(e) => setContrasena(e.target.value)}
                 placeholder="Mínimo 6 caracteres"
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
+                required
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </div>
 
-            {/* Error */}
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl px-4 py-3">
                 ⚠ {error}
@@ -128,7 +233,11 @@ export default function RegistroScreen({ navegar }: Props) {
 
           <p className="text-center text-sm text-gray-500 mt-6">
             ¿Ya tienes cuenta?{" "}
-            <button onClick={() => navegar("login")} className="text-green-600 font-semibold hover:underline">
+            <button
+              type="button"
+              onClick={() => navegar("login")}
+              className="text-green-600 font-semibold hover:underline"
+            >
               Iniciar sesión
             </button>
           </p>

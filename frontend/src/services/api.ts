@@ -1,8 +1,7 @@
 
-// ============================================================
-// CAPA DE COMUNICACIÓN: React → FastAPI
-// Todos los fetch() hacia el backend pasan por aquí.
-// ============================================================
+ // ============================================================
+ // CAPA DE COMUNICACIÓN: React → FastAPI
+ // ============================================================
 
 const BASE_URL = (
   import.meta.env.VITE_API_URL || "https://domilocal.onrender.com"
@@ -48,6 +47,8 @@ export const authAPI = {
     correo: string;
     contrasena: string;
     tipo: "cliente" | "negocio" | "domiciliario";
+    nombre_negocio?: string;
+    categoria?: string;
   }) =>
     peticion<{
       access_token: string;

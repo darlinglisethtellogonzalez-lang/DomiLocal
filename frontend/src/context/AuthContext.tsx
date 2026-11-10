@@ -9,16 +9,20 @@ import {
 
 import { authAPI, type Usuario } from "../services/api";
 
+interface DatosRegistro {
+  nombre: string;
+  correo: string;
+  contrasena: string;
+  tipo: "cliente" | "negocio" | "domiciliario";
+  nombre_negocio?: string;
+  categoria?: string;
+}
+
 interface AuthContextType {
   usuario: Usuario | null;
   cargando: boolean;
   login: (correo: string, contrasena: string) => Promise<void>;
-  registrar: (datos: {
-    nombre: string;
-    correo: string;
-    contrasena: string;
-    tipo: "cliente" | "negocio" | "domiciliario";
-  }) => Promise<void>;
+  registrar: (datos: DatosRegistro) => Promise<void>;
   cerrarSesion: () => void;
 }
 
@@ -52,12 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUsuario(respuesta.usuario);
   };
 
-  const registrar = async (datos: {
-    nombre: string;
-    correo: string;
-    contrasena: string;
-    tipo: "cliente" | "negocio" | "domiciliario";
-  }) => {
+  const registrar = async (datos: DatosRegistro) => {
     const respuesta = await authAPI.registrar(datos);
 
     localStorage.setItem("token", respuesta.access_token);

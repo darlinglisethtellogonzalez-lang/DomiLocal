@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from database.database import get_db
 from backend.models.usuario import Usuario
+from backend.models.negocio import Negocio
 from backend.schemas.usuario import (
     RegistroUsuario,
     LoginUsuario,
@@ -30,10 +31,8 @@ router = APIRouter(prefix="/auth", tags=["Autenticación"])
 
 password_hash = PasswordHash.recommended()
 
-# Recibir tokens Bearer desde Swagger y el frontend
 oauth2_scheme = HTTPBearer(auto_error=False)
 
-# Configuración JWT
 SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 
@@ -41,6 +40,14 @@ if not SECRET_KEY:
     raise RuntimeError(
         "Falta configurar JWT_SECRET_KEY en el archivo .env"
     )
+
+CATEGORIAS_NEGOCIO = [
+    "Restaurante",
+    "Tienda",
+    "Cafetería",
+    "Panadería",
+    "Otro",
+]
 
 
 # ==========================================================
@@ -138,6 +145,27 @@ def registrar(
             detail="Tipo de usuario inválido",
         )
 
+    # Validar los datos adicionales de los negocios
+    if datos.tipo == "negocio":
+
+        if not datos.nombre_negocio or not datos.nombre_negocio.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Debes ingresar el nombre del negocio",
+            )
+
+        if not datos.categoria:
+            raise HTTPException(
+                status_code=400,
+                detail="Debes seleccionar una categoría",
+            )
+
+        if datos.categoria not in CATEGORIAS_NEGOCIO:
+            raise HTTPException(
+                status_code=400,
+                detail="La categoría seleccionada no es válida",
+            )
+
     existente = db.query(Usuario).filter(
         Usuario.email == datos.correo
     ).first()
@@ -149,14 +177,28 @@ def registrar(
         )
 
     nuevo_usuario = Usuario(
-        nombre=datos.nombre,
+        nombre=datos.nombre.strip(),
         email=datos.correo,
         password=password_hash.hash(datos.contrasena),
         rol=datos.tipo,
     )
 
     try:
+        # Guardar primero el usuario para obtener su ID
         db.add(nuevo_usuario)
+        db.flush()
+
+        # Crear y vincular el negocio cuando corresponda
+        if datos.tipo == "negocio":
+            nuevo_negocio = Negocio(
+                usuario_id=nuevo_usuario.id,
+                nombre_negocio=datos.nombre_negocio.strip(),
+                categoria=datos.categoria,
+            )
+
+            db.add(nuevo_negocio)
+
+        # Guardar ambos registros en una sola transacción
         db.commit()
         db.refresh(nuevo_usuario)
 
@@ -164,7 +206,7 @@ def registrar(
         db.rollback()
         raise HTTPException(
             status_code=500,
-            detail="No se pudo registrar el usuario",
+            detail="No se pudo completar el registro. Intenta nuevamente.",
         )
 
     token = crear_token(nuevo_usuario.id)

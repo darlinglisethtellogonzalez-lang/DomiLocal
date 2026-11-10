@@ -4,7 +4,9 @@
 // Todos los fetch() hacia el backend pasan por aquí.
 // ============================================================
 
-const BASE_URL = "http://localhost:8000";
+const BASE_URL = (
+  import.meta.env.VITE_API_URL || "https://domilocal.onrender.com"
+).replace(/\/$/, "");
 
 // ============================================================
 // UTILIDAD DE PETICIÓN
@@ -74,7 +76,6 @@ export const authAPI = {
 // ============================================================
 
 export const productosAPI = {
-  /** GET /api/productos → productos de la API */
   listarPrueba: async (): Promise<Producto[]> => {
     type ProductoSimulado = {
       id: number;
@@ -158,7 +159,6 @@ export const productosAPI = {
     });
   },
 
-  /** GET /productos → lista de productos con filtros */
   listar: (params?: {
     categoria?: string;
     busqueda?: string;
@@ -201,22 +201,18 @@ export const productosAPI = {
 // ============================================================
 
 export const pedidosAPI = {
-  /** POST /pedidos → crear pedido */
   crear: (datos: CrearPedido) =>
     peticion<Pedido>("/pedidos", {
       method: "POST",
       body: JSON.stringify(datos),
     }),
 
-  /** GET /pedidos/mis-pedidos → pedidos del cliente */
   misPedidos: () =>
     peticion<Pedido[]>("/pedidos/mis-pedidos"),
 
-  /** GET /pedidos/{id} → consultar pedido */
   obtener: (id: number) =>
     peticion<Pedido>(`/pedidos/${id}`),
 
-  /** PUT /pedidos/{id}/estado → cambiar estado del pedido */
   cambiarEstado: (
     id: number,
     estado: EstadoPedido
@@ -231,13 +227,11 @@ export const pedidosAPI = {
       body: JSON.stringify({ estado }),
     }),
 
-  /** GET /pedidos/negocio/mis-pedidos → pedidos reales del negocio */
   delNegocio: () =>
     peticion<RespuestaPedidosNegocio>(
       "/pedidos/negocio/mis-pedidos"
     ),
 
-  /** GET /pedidos/domiciliario → pedidos del domiciliario */
   delDomiciliario: () =>
     peticion<Pedido[]>("/pedidos/domiciliario"),
 };

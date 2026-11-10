@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session
 
 from database.database import get_db, engine, Base
 
-# Registrar todos los modelos
 from backend.models import (
     Usuario,
     Negocio,
@@ -16,6 +15,7 @@ from backend.models import (
 
 from backend.routers.auth import router as auth_router
 from backend.routers.pedidos import router as pedidos_router
+from backend.routers.productos import router as productos_router
 
 
 app = FastAPI(
@@ -33,17 +33,15 @@ app.add_middleware(
 )
 
 
-# Crear las tablas si todavía no existen
 @app.on_event("startup")
 def crear_tablas():
     Base.metadata.create_all(bind=engine)
 
 
-# Rutas de autenticación
+# Rutas
 app.include_router(auth_router)
-
-# Rutas de pedidos
 app.include_router(pedidos_router)
+app.include_router(productos_router)
 
 
 @app.get("/")
@@ -54,18 +52,23 @@ def inicio():
     }
 
 
+# Mantener la ruta anterior para compatibilidad
 @app.get("/api/productos")
 def obtener_productos(db: Session = Depends(get_db)):
-    productos_db = db.query(Producto).order_by(Producto.id).all()
+    productos_db = db.query(Producto).filter(
+        Producto.disponible == True
+    ).order_by(Producto.id).all()
 
     return [
         {
             "id": producto.id,
+            "negocio_id": producto.negocio_id,
             "nombre": producto.nombre,
             "descripcion": producto.descripcion,
             "precio": float(producto.precio),
-            "categoria": "General",
-            "imagen_url": producto.imagen_url
+            "categoria": producto.categoria,
+            "imagen_url": producto.imagen_url,
+            "disponible": producto.disponible
         }
         for producto in productos_db
     ]

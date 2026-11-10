@@ -111,3 +111,4 @@ export default function LoginScreen({ navegar }: Props) {
     </div>
   );
 }
+
